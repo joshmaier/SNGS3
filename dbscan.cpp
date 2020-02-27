@@ -109,6 +109,8 @@ namespace NWUClustering
 		int i, j, sum_points = 0, noise = 0, root, rootcount = 0, tmp;
 		for(i = 0; i < m_pts->m_i_num_points; i++)
 		{
+			/*if(i == 383)
+				cout << "********** 383 Parent: " << m_parents[i] << endl;*/
 			root = m_parents[i];
 			// get the number of trees
 			if(i == m_parents[i])
@@ -118,12 +120,16 @@ namespace NWUClustering
 				root = m_parents[root];
 			// compress the tree to reduce the height of the branch of the tree to 1
 			j = i;
+			/*if(i == 383)
+				cout << "********** 383 Parent: " << m_parents[i] << endl;*/
 			while(m_parents[j] != root)
 			{
 				tmp  = m_parents[j];
 				m_parents[j] = root;
 				j = tmp;
 			}
+			/*if(root == 383)
+				cout << "heck yeah" << endl;*/
 			clusters[root]++;
 		}
 		int count = 0;
@@ -143,18 +149,20 @@ namespace NWUClustering
 				count++;
 				sum_points += clusters[i];
 				clusters[i] = count;
-				cout << "clusters[" << i << "]: " << clusters[i] << endl;
+				//cout << "clusters[" << i << "]: " << clusters[i] << endl;
+				cout << clusters[i] << ": " << i << endl;
 			}
 			// skip if i is not a root
 		}
 		// write point id and cluster ids to file
-	//	for(i = 0; i < m_pts->m_i_num_points; i++)
-	//	{
-			//o << i << " " << clusters[m_parents[i]] << endl; This was the only one not commented out
-	//	}
+		for(i = 0; i < m_pts->m_i_num_points; i++)
+		{
+			o << i << " " << clusters[m_parents[i]] << endl; //This was the only one not commented out
+		}
 		cout << "Total points " << noise + sum_points << " pt_in_cls " << sum_points << " noise " << noise << endl;
 		cout << "Number of clusters: " << count << endl;
 		o << "Number of clusters: " << count << endl;
+		//cout << "rootcount: " << rootcount << endl;
 		clusters.clear();
 	}
 
@@ -162,7 +170,7 @@ namespace NWUClustering
 
 	void run_dbscan_algo_uf(ClusteringAlgo& dbs)
 	{			
-		int tid, i, pid, j, k, npid, root, root1, root2, sid, h;
+		int tid, i, pid, j, k, npid, root, root1, root2, sid, h, qualitypoints=0;
 		srand(time(NULL));
 
         	// initialize some parameters
@@ -195,7 +203,7 @@ namespace NWUClustering
 		vector<int>* ind = dbs.m_kdtree->getIndex(); // Sets a vector that contains the index of all points
 		double start = omp_get_wtime();
 		cout<< endl;
-		#pragma omp parallel private(root, root1, root2, tid, ne, ne2, npid, i, j, pid, growing_points, sid) shared(sch, ind, h) //, prID) // creates threads
+		#pragma omp parallel private(root, root1, root2, tid, ne, ne2, npid, i, j, pid, growing_points, sid) shared(sch, ind, h, qualitypoints) //, prID) // creates threads
 		// private means that each thread will have its own private copy of variable in memory
 		// shared means that all threads will share same copy of variable in memory
 		{
@@ -228,10 +236,18 @@ namespace NWUClustering
 				{
 
 					sid = (*ind)[(rand() % sch) + (sch * tid)]; // generates random index in the range of each thread's set of data points
-					dbs.m_kdtree->r_nearest_around_point(sid, 0, dbs.m_epsSquare, ne);
+					/*if(sid == 7016)
+						cout << "????????? size is: " << ne.size() << endl;*/
 						
-				}while(ne.size() < dbs.m_minPts || (find(growing_points.begin(), growing_points.end(), sid) != growing_points.end()));
+				}while((find(growing_points.begin(), growing_points.end(), sid) != growing_points.end()));
 				//repeats the do while loop if it is not a core point or the point has already been selected as a growing point
+				dbs.m_kdtree->r_nearest_around_point(sid, 0, dbs.m_epsSquare, ne);
+				if(ne.size() >= dbs.m_minPts){
+					qualitypoints++;
+					growing_points.push_back(sid); // adds the point to the growing points vector
+					dbs.m_member[sid] = 1; // marks the point as a member of a cluster
+				}	
+
 				growing_points.push_back(sid); // adds the point to the growing points vector
 			}
 			double stop1 = omp_get_wtime();
@@ -246,6 +262,9 @@ namespace NWUClustering
             	dbs.m_kdtree->r_nearest_around_point(pid, 0, dbs.m_epsSquare, ne); // gets nearest neighbors
             		
 				dbs.m_member[pid] = 1; // mark as a member
+				if(npid == pid){
+					continue;
+				}
 				// get the root containing pid
 				root = pid;
 				for (j = 0; j < ne.size(); j++)
@@ -255,7 +274,8 @@ namespace NWUClustering
 					//cout << "prID: " << prID[npid] << " tid: " << tid << endl;
 					if(prID[npid] != tid) // this checks to see if the two points are in the same thread. If not, add them to merge
 					{
-					
+						/*if(npid == 383)
+							cout << "ASFDSDFASDFASDFSA" << endl;*/
 						merge[tid].push_back(pid); // The two points gets added to the end of the merge vector and will be merged later
 						merge[tid].push_back(npid);
 						continue; // goes to end of for loop
@@ -263,6 +283,21 @@ namespace NWUClustering
 					// get the root containing npid
 					root1 = npid;
 					root2 = root;
+
+					/*if(npid == 383){
+						cout << "root1 (npid): " << root1 << endl;
+						cout << "root2: " << root2 << endl;
+						cout << "parents of root1: " << dbs.m_parents[root1] << endl;
+						cout << "parents of root2: " << dbs.m_parents[root2] << endl;
+					}
+
+					if(root2 == 7016){
+						cout << "ROOT2 SAF SD FASDF SADF SAD FSDA F SA 7016" << endl;
+						cout << "root1 (npid): " << root1 << endl;
+						cout << "root2: " << root2 << endl;
+						cout << "parents of root1: " << dbs.m_parents[root1] << endl;
+						cout << "parents of root2: " << dbs.m_parents[root2] << endl;
+					}*/
 
 					dbs.m_kdtree->r_nearest_around_point(npid, 0, dbs.m_epsSquare, ne2);
 
@@ -278,7 +313,8 @@ namespace NWUClustering
 
 					if(prID[dbs.m_parents[npid]] != tid || dbs.m_member[npid] == 0)  //dbs.m_parents[npid] == npid   If point's parent doesn't belong to local cluster or point has not yet been clustered
 					{
-						
+						/*if(npid == 383)
+							cout << "Here" << endl;*/
 						// REMS algorithm to merge the trees ** Beginning of Union **
 						while(dbs.m_parents[root1] != dbs.m_parents[root2]) // while the parents aren't equal
 						{
@@ -298,11 +334,15 @@ namespace NWUClustering
 							}
 							else
 							{
+								/*if(npid == 383)
+									cout << "Here, parents of root2 is less than parents of root1" << endl;*/
 								//root2 < root 1
 								if(dbs.m_parents[root2] == root2)  //if point is the root else
 								{
 									dbs.m_parents[root2] = dbs.m_parents[root1]; //Sets the parent of root2 to be the parent of root1
 									root = dbs.m_parents[root1];
+								/*	if(npid == 383)
+										cout << "root is: " << root << endl;*/
 									break; //root has been found. Break from loop
 								}
 					   	        // splicing
@@ -314,12 +354,14 @@ namespace NWUClustering
 
 						
 						ne = kdtree_set_difference(ne, ne2);
-						std::make_heap(ne.begin(), ne.end(), compareByIdx);
+						std::make_heap(ne.begin(), ne.end(), compareByIdx); //**************************************
 						if(ne2.size() >= dbs.m_minPts){
 							// If npid is not already in growing points vector, then add it to growing points
 							if(find(growing_points.begin(), growing_points.end(), npid) == growing_points.end()){
 								dbs.m_member[npid] == 1; // Won't need this anymore. No need to mark as a member
 								growing_points.push_back(npid);
+								//ne = kdtree_set_difference(ne, ne2);
+								//std::make_heap(ne.begin(), ne.end(), compareByIdx);
 							}
 						}
 						else{
@@ -337,6 +379,7 @@ namespace NWUClustering
 		// merge the trees that have not been merged yet
 		double stop = omp_get_wtime() ;
 		cout  <<  endl;
+		cout << "Quality points: " << qualitypoints << endl;
 		cout << "Local computation took " << stop - start << " seconds." << endl;
 		//allocate and initiate locks
     	omp_lock_t *nlocks;

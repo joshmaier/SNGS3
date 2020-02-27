@@ -133,7 +133,7 @@ int main(int argc, char** argv)
 		outputfile << endl;
 
 	}*/
-	for(int n=5000; n<5001; n=n+10){
+	for(int n=7000; n<7001; n=n+10){
 		//for(int n=5; n<499; n=n+25){
 		//if(n != 4 && n != 5 && n != 6)
 		seeds = n;
@@ -150,6 +150,7 @@ int main(int argc, char** argv)
 		run_dbscan_algo_uf(dbs);
 		time = omp_get_wtime() - start;
 		outputfile << "DBSCAN (total) took " << time << " seconds." << endl;
+		cout << "DBSCAN (total) took " << time << " seconds." << endl;
 		dbs.writeClusters_uf(outputfile);
 		outputfile << endl;
 
